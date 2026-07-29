@@ -1,6 +1,7 @@
 # ADMIN CONFIG REQUIRED:
-# Configure the repository secrets documented in the deployment README, create/protect the release branch,
-# and create the verdantflare-login-secret in the Kubernetes namespace before the first deployment.
+# Configure REGISTRY_* and KUBERNETES_* repository secrets. Before the first
+# release, create verdantflare-login-web and verdantflare-login-api Deployments
+# plus the required Login and database Secrets in the verdantflare namespace.
 name: build
 
 on:
@@ -21,9 +22,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Test and build images
+  build-and-push:
+    name: Test and push Login images
     runs-on: ubuntu-latest
+    outputs:
+      image_name: ${{ steps.image.outputs.image_name }}
 
     steps:
       - name: Checkout code
@@ -65,13 +68,9 @@ jobs:
         env:
           REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
         run: |
+          set -eu
           registry_endpoint="${REGISTRY_ENDPOINT%/}"
-
-          if [ -z "$registry_endpoint" ]; then
-            echo "REGISTRY_ENDPOINT_ALIYUN is required" >&2
-            exit 1
-          fi
-
+          test -n "$registry_endpoint"
           echo "registry_endpoint=$registry_endpoint" >> "$GITHUB_OUTPUT"
           echo "image_namespace=$registry_endpoint/wod" >> "$GITHUB_OUTPUT"
           echo "image_name=$registry_endpoint/wod/verdantflare" >> "$GITHUB_OUTPUT"
@@ -83,14 +82,15 @@ jobs:
           username: ${{ secrets.REGISTRY_USER_ALIYUN }}
           password: ${{ secrets.REGISTRY_PASSWORD_ALIYUN }}
 
-      - name: Build login web image
-        uses: docker/build-push-action@v5
+      - name: Build and push Login web image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile.web
           platforms: linux/amd64
           push: true
           provenance: false
+          sbom: false
           tags: |
             ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_WEB_VERSION }}
             ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_WEB_VERSION }}-${{ github.sha }}
@@ -101,14 +101,15 @@ jobs:
           cache-from: type=gha,scope=login-web
           cache-to: type=gha,mode=max,scope=login-web
 
-      - name: Build login API image
-        uses: docker/build-push-action@v5
+      - name: Build and push Login API image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile.api
           platforms: linux/amd64
           push: true
           provenance: false
+          sbom: false
           tags: |
             ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_API_VERSION }}
             ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_API_VERSION }}-${{ github.sha }}
@@ -118,14 +119,14 @@ jobs:
           cache-from: type=gha,scope=login-api
           cache-to: type=gha,mode=max,scope=login-api
 
-      - name: Image push success
+      - name: Image build success
         run: |
-          echo "${{ steps.image.outputs.image_name }}:${LOGIN_WEB_VERSION} built and pushed successfully!"
-          echo "${{ steps.image.outputs.image_name }}:${LOGIN_API_VERSION} built and pushed successfully!"
+          echo "${{ steps.image.outputs.image_name }}:${LOGIN_WEB_VERSION} built and pushed."
+          echo "${{ steps.image.outputs.image_name }}:${LOGIN_API_VERSION} built and pushed."
 
   deploy:
     name: Deploy Login to Kubernetes
-    needs: build
+    needs: build-and-push
     if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
 
@@ -164,14 +165,18 @@ jobs:
           kubectl config use-context verdantflare
 
       - name: Update Login deployments
+        env:
+          IMAGE_NAME: ${{ needs.build-and-push.outputs.image_name }}
         run: |
-          image_name="registry.cn-qingdao.aliyuncs.com/wod/verdantflare"
-          web_image="$image_name:${LOGIN_WEB_VERSION}-${GITHUB_SHA}"
-          api_image="$image_name:${LOGIN_API_VERSION}-${GITHUB_SHA}"
+          set -eu
+          web_image="$IMAGE_NAME:${LOGIN_WEB_VERSION}-${GITHUB_SHA}"
+          api_image="$IMAGE_NAME:${LOGIN_API_VERSION}-${GITHUB_SHA}"
 
           kubectl set image deployment/verdantflare-login-web verdantflare-login-web="$web_image"
           kubectl set image deployment/verdantflare-login-api verdantflare-login-api="$api_image"
           kubectl rollout status deployment/verdantflare-login-web --timeout=5m
           kubectl rollout status deployment/verdantflare-login-api --timeout=5m
-          kubectl get deployment/verdantflare-login-web -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-web")].image}{"\n"}'
-          kubectl get deployment/verdantflare-login-api -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-api")].image}{"\n"}'
+          kubectl get deployment/verdantflare-login-web \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-web")].image}{"\n"}'
+          kubectl get deployment/verdantflare-login-api \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-api")].image}{"\n"}'
