@@ -53,10 +53,13 @@ Vite 会把 `/api/auth` 和 `/healthz` 同源代理至 `http://localhost:8088`�
 
 PostgreSQL 表结构位于 `migrations/postgres/`。生产环境必须设置 `VF_DATABASE_URL`；连接池默认最多 10 个连接、保留 5 个空闲连接。注册与验证码消费、密码重置与会话撤销均在短事务内完成。
 
-默认管理员的密码哈希由管理员本地生成，明文密码不得提交：
+默认管理员的密码哈希由管理员本地生成，明文密码不得提交。优先使用隐藏输入并通过标准输入传给哈希工具，避免密码进入命令历史：
 
 ```bash
-VF_BOOTSTRAP_PASSWORD='replace-with-a-strong-password' go run ./cmd/password-hash
+read -r -s -p 'Bootstrap password: ' VF_BOOTSTRAP_PASSWORD </dev/tty
+printf '\n' >/dev/tty
+printf %s "$VF_BOOTSTRAP_PASSWORD" | go run ./cmd/password-hash
+unset VF_BOOTSTRAP_PASSWORD
 ```
 
 ## 验证

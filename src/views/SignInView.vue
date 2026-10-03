@@ -7,13 +7,17 @@ import { navigate } from "../router";
 
 const query = new URLSearchParams(window.location.search);
 const returnTo = safeReturnTo(query.get("return_to"));
+const devAdminEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || "";
 const email = ref(query.get("email") || "");
 const password = ref("");
 const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 const redirectTo = ref("");
-const canSubmit = computed(() => /^\S+@\S+\.\S+$/.test(email.value) && password.value.length >= 8 && !loading.value);
+const canSubmit = computed(() =>
+  (/^\S+@\S+\.\S+$/.test(email.value) || (devAdminEmail && email.value.toLowerCase() === "admin"))
+  && password.value.length >= 8 && !loading.value,
+);
 
 const withReturnTo = (path) => `${path}?return_to=${encodeURIComponent(returnTo)}`;
 
@@ -21,7 +25,8 @@ const submit = async () => {
   error.value = "";
   loading.value = true;
   try {
-    const result = await authApi.signIn({ email: email.value, password: password.value, returnTo });
+    const loginEmail = devAdminEmail && email.value.toLowerCase() === "admin" ? devAdminEmail : email.value;
+    const result = await authApi.signIn({ email: loginEmail, password: password.value, returnTo });
     redirectTo.value = result.redirectTo;
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "登录失败，请重试";
@@ -46,10 +51,10 @@ const submit = async () => {
     </header>
 
     <label class="field">
-      <span>邮箱</span>
+      <span>{{ devAdminEmail ? "邮箱或用户名" : "邮箱" }}</span>
       <span class="input-wrap">
         <AppIcon name="mail" :size="20" />
-        <input v-model.trim="email" type="email" autocomplete="email" inputmode="email" placeholder="name@company.com" required />
+        <input v-model.trim="email" :type="devAdminEmail ? 'text' : 'email'" autocomplete="username" :placeholder="devAdminEmail ? 'admin 或 name@company.com' : 'name@company.com'" required />
       </span>
     </label>
 
