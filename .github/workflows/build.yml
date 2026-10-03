@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.0.0-dev.2' || 'login-web-v1.0.0' }}
-  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.0.0-dev.2' || 'login-api-v1.0.0' }}
+  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.0.0-dev.2' || 'login-web-v1.1.0' }}
+  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.0.0-dev.2' || 'login-api-v1.1.0' }}
 
 concurrency:
   group: verdantflare-login-release
@@ -159,8 +159,8 @@ jobs:
           IMAGE_NAME: ${{ needs.build-and-push.outputs.image_name }}
         run: |
           set -eu
-          web_image="$IMAGE_NAME:${LOGIN_WEB_VERSION}-${GITHUB_SHA}"
-          api_image="$IMAGE_NAME:${LOGIN_API_VERSION}-${GITHUB_SHA}"
+          web_image="$IMAGE_NAME:${LOGIN_WEB_VERSION}"
+          api_image="$IMAGE_NAME:${LOGIN_API_VERSION}"
 
           kubectl set image deployment/verdantflare-login-web verdantflare-login-web="$web_image"
           kubectl set image deployment/verdantflare-login-api verdantflare-login-api="$api_image"
