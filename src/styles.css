@@ -208,6 +208,8 @@ a:hover { color: #0c5d31; }
 .result-state h1 { font-size: clamp(39px, 3.2vw, 51px); }
 .result-state > p { max-width: 480px; }
 .result-state > .button { min-width: 210px; margin-top: 30px; }
+.result-actions { display: grid; width: min(100%, 240px); gap: 12px; margin-top: 30px; }
+.result-actions .button { width: 100%; }
 .result-state > a:not(.button) { margin-top: 24px; font-size: 14px; font-weight: 640; }
 .result-state strong { color: #39403a; font-weight: 650; overflow-wrap: anywhere; }
 

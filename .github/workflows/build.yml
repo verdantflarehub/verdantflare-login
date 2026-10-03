@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.0.0-dev.2' || 'login-web-v1.1.1' }}
-  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.0.0-dev.2' || 'login-api-v1.1.1' }}
+  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.0.0-dev.2' || 'login-web-v1.1.2' }}
+  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.0.0-dev.2' || 'login-api-v1.1.2' }}
 
 concurrency:
   group: verdantflare-login-release
@@ -152,7 +152,6 @@ jobs:
             --cluster=verdantflare \
             --user=github-actions \
             --namespace=verdantflare
-          kubectl config use-context verdantflare
 
       - name: Update Login deployments
         run: |
@@ -160,11 +159,11 @@ jobs:
           web_image="registry.cn-qingdao.aliyuncs.com/wod/verdantflare:${LOGIN_WEB_VERSION}"
           api_image="registry.cn-qingdao.aliyuncs.com/wod/verdantflare:${LOGIN_API_VERSION}"
 
-          kubectl set image deployment/verdantflare-login-web verdantflare-login-web="$web_image"
-          kubectl set image deployment/verdantflare-login-api verdantflare-login-api="$api_image"
-          kubectl rollout status deployment/verdantflare-login-web --timeout=5m
-          kubectl rollout status deployment/verdantflare-login-api --timeout=5m
-          kubectl get deployment/verdantflare-login-web \
+          kubectl --context verdantflare -n verdantflare set image deployment/verdantflare-login-web verdantflare-login-web="$web_image"
+          kubectl --context verdantflare -n verdantflare set image deployment/verdantflare-login-api verdantflare-login-api="$api_image"
+          kubectl --context verdantflare -n verdantflare rollout status deployment/verdantflare-login-web --timeout=5m
+          kubectl --context verdantflare -n verdantflare rollout status deployment/verdantflare-login-api --timeout=5m
+          kubectl --context verdantflare -n verdantflare get deployment/verdantflare-login-web \
             -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-web")].image}{"\n"}'
-          kubectl get deployment/verdantflare-login-api \
+          kubectl --context verdantflare -n verdantflare get deployment/verdantflare-login-api \
             -o jsonpath='{.spec.template.spec.containers[?(@.name=="verdantflare-login-api")].image}{"\n"}'

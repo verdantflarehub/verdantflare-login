@@ -34,6 +34,22 @@ export const hubUrl = (returnTo) => `${hubBase}${safeReturnTo(returnTo)}`;
 const mockEmail = (email) => email.trim().toLowerCase();
 
 export const authApi = {
+  async getCenterContext() {
+    if (!useMock) {
+      const response = await fetch("/api/control/context", { credentials: "include" });
+      if (!response.ok) throw new Error("无法获取业务权限");
+      return response.json();
+    }
+    const profile = JSON.parse(localStorage.getItem("vf_mock_profile") || "null");
+    const adminEmail = mockEmail(import.meta.env.VITE_DEV_ADMIN_EMAIL || "admin@verdantflarehub.com");
+    return {
+      activeOrganizationId: "org_verdantflare",
+      organizations: [{
+        organizationId: "org_verdantflare",
+        roles: profile?.email === adminEmail ? ["app_ops_admin", "customer_success_admin"] : [],
+      }],
+    };
+  },
   async signIn(payload) {
     if (!useMock) return request("/sign-in", { method: "POST", body: JSON.stringify(payload) });
     await wait();

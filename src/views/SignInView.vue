@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from "vue";
-import { authApi, safeReturnTo } from "../api/auth";
+import { authApi, hubUrl, safeReturnTo } from "../api/auth";
+import { managementPathFor } from "../api/management";
 import AppIcon from "../components/AppIcon.vue";
 import FormMessage from "../components/FormMessage.vue";
 import { navigate } from "../router";
@@ -14,6 +15,7 @@ const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 const redirectTo = ref("");
+const managementTo = ref("");
 const canSubmit = computed(() =>
   (/^\S+@\S+\.\S+$/.test(email.value) || (devAdminEmail && email.value.toLowerCase() === "admin"))
   && password.value.length >= 8 && !loading.value,
@@ -28,6 +30,12 @@ const submit = async () => {
     const loginEmail = devAdminEmail && email.value.toLowerCase() === "admin" ? devAdminEmail : email.value;
     const result = await authApi.signIn({ email: loginEmail, password: password.value, returnTo });
     redirectTo.value = result.redirectTo;
+    try {
+      const managementPath = managementPathFor(await authApi.getCenterContext());
+      managementTo.value = managementPath ? hubUrl(managementPath) : "";
+    } catch {
+      managementTo.value = "";
+    }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "登录失败，请重试";
   } finally {
@@ -41,7 +49,10 @@ const submit = async () => {
     <span class="result-icon"><AppIcon name="check" :size="30" /></span>
     <h1>登录成功</h1>
     <p>安全会话已建立，可以继续进入 VerdantFlare Hub。</p>
-    <a class="button primary" :href="redirectTo">进入 Hub <AppIcon name="arrow" :size="18" /></a>
+    <div class="result-actions">
+      <a class="button primary" :href="redirectTo">进入 Hub <AppIcon name="arrow" :size="18" /></a>
+      <a v-if="managementTo" class="button secondary" :href="managementTo">进入管理端 <AppIcon name="arrow" :size="18" /></a>
+    </div>
   </div>
 
   <form v-else class="auth-form" novalidate @submit.prevent="submit">
