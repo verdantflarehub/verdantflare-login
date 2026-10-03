@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  LOGIN_WEB_VERSION: login-web-v1.0.0
-  LOGIN_API_VERSION: login-api-v1.0.0
+  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.0.0-dev.1' || 'login-web-v1.0.0' }}
+  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.0.0-dev.1' || 'login-api-v1.0.0' }}
 
 concurrency:
   group: verdantflare-login-release
@@ -45,7 +45,7 @@ jobs:
         env:
           VITE_USE_MOCK: "false"
           VITE_AUTH_API_BASE: /api/auth
-          VITE_HUB_URL: https://hub.verdantflarehub.com
+          VITE_HUB_URL: ${{ github.ref == 'refs/heads/dev' && 'https://hub.dev.verdantflarehub.com' || 'https://hub.verdantflarehub.com' }}
         run: npm run build
 
       - name: Set up Docker Buildx
