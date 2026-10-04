@@ -48,7 +48,16 @@ func main() {
 			}
 		}()
 	}
-	service, err := auth.NewService(store, mailer.LogMailer{Logger: logger}, auth.ServiceConfig{
+	var delivery auth.Mailer = mailer.LogMailer{Logger: logger}
+	if cfg.MailProvider == "resend" {
+		resendMailer, err := mailer.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
+		if err != nil {
+			logger.Error("mail delivery configuration invalid", "error", err)
+			os.Exit(1)
+		}
+		delivery = resendMailer
+	}
+	service, err := auth.NewService(store, delivery, auth.ServiceConfig{
 		HubURL: cfg.HubURL, PublicLoginURL: cfg.PublicLoginURL,
 		SessionTTL: cfg.SessionTTL, VerificationTTL: cfg.VerificationTTL,
 		PasswordResetTTL: cfg.PasswordResetTTL, TokenPepper: cfg.TokenPepper,
@@ -80,7 +89,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("login server started", "address", cfg.Address, "environment", cfg.Environment, "store", storeName)
+	logger.Info("login server started", "address", cfg.Address, "environment", cfg.Environment, "store", storeName, "mail_provider", cfg.MailProvider)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("login server stopped unexpectedly", "error", err)
 		os.Exit(1)

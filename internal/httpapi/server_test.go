@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,12 +19,13 @@ import (
 )
 
 type testMailer struct {
-	code string
+	code            string
+	verificationErr error
 }
 
 func (m *testMailer) SendVerificationCode(_ context.Context, _ string, code string, _ time.Duration) error {
 	m.code = code
-	return nil
+	return m.verificationErr
 }
 
 func (m *testMailer) SendPasswordReset(_ context.Context, _, _ string, _ time.Duration) error {
@@ -97,6 +100,18 @@ func TestCrossOriginWriteRequestIsRejected(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("cross-origin request status = %d, want 403", response.Code)
+	}
+}
+
+func TestVerificationDoesNotReportSuccessWhenMailerFails(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, &testMailer{verificationErr: errors.New("provider unavailable")})
+	response := performJSON(t, handler, http.MethodPost, "/api/auth/verification-code", map[string]any{"email": "user@example.com"}, nil)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("verification failure returned HTTP %d instead of an error", response.Code)
+	}
+	if strings.Contains(response.Body.String(), "provider unavailable") {
+		t.Fatal("provider error leaked to browser")
 	}
 }
 

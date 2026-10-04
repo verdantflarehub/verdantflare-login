@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -27,11 +28,18 @@ type Config struct {
 	PasswordResetTTL time.Duration
 	TokenPepper      []byte
 	ExposeDebugCodes bool
+	MailProvider     string
+	MailFrom         string
+	ResendAPIKey     string
 }
 
 func Load() (Config, error) {
 	environment := env("VF_ENV", "development")
 	production := environment == "production"
+	defaultMailProvider := "log"
+	if production {
+		defaultMailProvider = "resend"
+	}
 
 	cfg := Config{
 		Address:          env("VF_LISTEN_ADDR", ":8088"),
@@ -48,6 +56,27 @@ func Load() (Config, error) {
 		VerificationTTL:  envDuration("VF_VERIFICATION_TTL", 10*time.Minute),
 		PasswordResetTTL: envDuration("VF_PASSWORD_RESET_TTL", 30*time.Minute),
 		ExposeDebugCodes: envBool("VF_EXPOSE_DEBUG_CODES", false),
+		MailProvider:     env("VF_MAIL_PROVIDER", defaultMailProvider),
+		MailFrom:         strings.TrimSpace(os.Getenv("VF_MAIL_FROM")),
+		ResendAPIKey:     strings.TrimSpace(os.Getenv("VF_RESEND_API_KEY")),
+	}
+	if cfg.MailProvider != "resend" && cfg.MailProvider != "log" {
+		return Config{}, errors.New("VF_MAIL_PROVIDER must be resend or log")
+	}
+	if production && cfg.MailProvider != "resend" {
+		return Config{}, errors.New("VF_MAIL_PROVIDER must be resend in production")
+	}
+	if production && cfg.ExposeDebugCodes {
+		return Config{}, errors.New("VF_EXPOSE_DEBUG_CODES cannot be enabled in production")
+	}
+	if cfg.MailProvider == "resend" {
+		if cfg.ResendAPIKey == "" || cfg.MailFrom == "" {
+			return Config{}, errors.New("VF_RESEND_API_KEY and VF_MAIL_FROM are required for Resend")
+		}
+		address, err := mail.ParseAddress(cfg.MailFrom)
+		if err != nil || address.Address == "" {
+			return Config{}, errors.New("VF_MAIL_FROM must be a valid sender address")
+		}
 	}
 
 	pepper := strings.TrimSpace(os.Getenv("VF_TOKEN_PEPPER"))
