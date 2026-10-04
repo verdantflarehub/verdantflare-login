@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -207,6 +208,34 @@ func (s *Store) UserByID(ctx context.Context, userID string) (auth.User, error) 
 		return auth.User{}, auth.ErrNotFound
 	}
 	return user, wrap(err)
+}
+
+func (s *Store) ListUsers(ctx context.Context, cursor, query string, limit int) ([]auth.User, string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id,email,normalized_email,status,email_verified_at,created_at,updated_at
+		FROM auth_users
+		WHERE deleted_at IS NULL AND ($1 = '' OR id::text > $1)
+		  AND POSITION($2 IN normalized_email) > 0
+		ORDER BY id LIMIT $3`, cursor, strings.ToLower(query), limit+1)
+	if err != nil {
+		return nil, "", wrap(err)
+	}
+	defer rows.Close()
+	users := make([]auth.User, 0, limit+1)
+	for rows.Next() {
+		var user auth.User
+		if err := rows.Scan(&user.ID, &user.Email, &user.NormalizedEmail, &user.Status, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, "", wrap(err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", wrap(err)
+	}
+	if len(users) <= limit {
+		return users, "", nil
+	}
+	return users[:limit], users[limit-1].ID, nil
 }
 
 func (s *Store) UpdatePassword(ctx context.Context, userID string, credential auth.PasswordCredential) error {

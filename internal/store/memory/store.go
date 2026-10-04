@@ -3,6 +3,8 @@ package memory
 import (
 	"context"
 	"crypto/subtle"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -121,6 +123,30 @@ func (s *Store) UserByID(_ context.Context, userID string) (auth.User, error) {
 		return auth.User{}, auth.ErrNotFound
 	}
 	return user, nil
+}
+
+func (s *Store) ListUsers(_ context.Context, cursor, query string, limit int) ([]auth.User, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ids := make([]string, 0, len(s.users))
+	for id, user := range s.users {
+		if id > cursor && strings.Contains(user.NormalizedEmail, strings.ToLower(query)) {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	if len(ids) <= limit {
+		result := make([]auth.User, 0, len(ids))
+		for _, id := range ids {
+			result = append(result, s.users[id])
+		}
+		return result, "", nil
+	}
+	result := make([]auth.User, 0, limit)
+	for _, id := range ids[:limit] {
+		result = append(result, s.users[id])
+	}
+	return result, ids[limit-1], nil
 }
 
 func (s *Store) UpdatePassword(_ context.Context, userID string, credential auth.PasswordCredential) error {

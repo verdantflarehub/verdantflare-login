@@ -71,6 +71,7 @@ func main() {
 	handler := httpapi.New(service, httpapi.Config{
 		CookieName: cfg.CookieName, CookieDomain: cfg.CookieDomain,
 		CookieSecure: cfg.CookieSecure, SessionTTL: cfg.SessionTTL,
+		DirectoryToken: cfg.DirectoryToken,
 	}, logger)
 	server := &http.Server{
 		Addr: cfg.Address, Handler: handler,

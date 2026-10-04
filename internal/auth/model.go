@@ -78,6 +78,7 @@ type Store interface {
 	CreateUserWithChallenge(context.Context, string, string, string, time.Time, User, PasswordCredential) error
 	UserByEmail(context.Context, string) (User, PasswordCredential, error)
 	UserByID(context.Context, string) (User, error)
+	ListUsers(context.Context, string, string, int) ([]User, string, error)
 	UpdatePassword(context.Context, string, PasswordCredential) error
 	SavePasswordReset(context.Context, PasswordReset) error
 	ConsumePasswordReset(context.Context, string, time.Time) (string, error)

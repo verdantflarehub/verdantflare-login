@@ -35,6 +35,14 @@ type Service struct {
 	registerMu sync.Mutex
 }
 
+func (s *Service) DirectoryUsers(ctx context.Context, cursor, query string, limit int) ([]User, string, error) {
+	return s.store.ListUsers(ctx, cursor, query, limit)
+}
+
+func (s *Service) DirectoryUser(ctx context.Context, id string) (User, error) {
+	return s.store.UserByID(ctx, id)
+}
+
 type VerificationResult struct {
 	ExpiresInSeconds int
 	DebugCode        string

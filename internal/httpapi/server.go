@@ -1,12 +1,15 @@
 package httpapi
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,10 +17,11 @@ import (
 )
 
 type Config struct {
-	CookieName   string
-	CookieDomain string
-	CookieSecure bool
-	SessionTTL   time.Duration
+	CookieName     string
+	CookieDomain   string
+	CookieSecure   bool
+	SessionTTL     time.Duration
+	DirectoryToken string
 }
 
 type Server struct {
@@ -37,6 +41,8 @@ func New(service *auth.Service, config Config, logger *slog.Logger) http.Handler
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
+	mux.HandleFunc("GET /api/internal/users", server.directoryUsers)
+	mux.HandleFunc("GET /api/internal/users/{userID}", server.directoryUser)
 	mux.HandleFunc("POST /api/auth/verification-code", server.sendVerificationCode)
 	mux.HandleFunc("POST /api/auth/verify-email/resend", server.sendVerificationCode)
 	mux.HandleFunc("POST /api/auth/sign-up", server.signUp)
@@ -50,6 +56,85 @@ func New(service *auth.Service, config Config, logger *slog.Logger) http.Handler
 
 	crossOrigin := http.NewCrossOriginProtection()
 	return server.recoverPanic(server.securityHeaders(server.requestLog(crossOrigin.Handler(mux))))
+}
+
+func (s *Server) directoryAuthorized(r *http.Request) bool {
+	if s.config.DirectoryToken == "" {
+		return false
+	}
+	const prefix = "Bearer "
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, prefix) {
+		return false
+	}
+	provided := strings.TrimSpace(strings.TrimPrefix(header, prefix))
+	if provided == "" {
+		return false
+	}
+	want, got := sha256.Sum256([]byte(s.config.DirectoryToken)), sha256.Sum256([]byte(provided))
+	return subtle.ConstantTimeCompare(want[:], got[:]) == 1
+}
+
+type directoryUserResponse struct {
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	Status        string    `json:"status"`
+	EmailVerified bool      `json:"emailVerified"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+func directoryProjection(user auth.User) directoryUserResponse {
+	return directoryUserResponse{ID: user.ID, Email: user.Email, Status: user.Status, EmailVerified: user.EmailVerifiedAt != nil, CreatedAt: user.CreatedAt}
+}
+
+func (s *Server) directoryUsers(w http.ResponseWriter, r *http.Request) {
+	if !s.directoryAuthorized(r) {
+		writeError(w, http.StatusUnauthorized, "未授权")
+		return
+	}
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 100 {
+			writeError(w, http.StatusBadRequest, "limit 必须为 1–100")
+			return
+		}
+		limit = parsed
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(query) > 160 || len(r.URL.Query().Get("cursor")) > 128 {
+		writeError(w, http.StatusBadRequest, "查询参数过长")
+		return
+	}
+	users, next, err := s.service.DirectoryUsers(r.Context(), r.URL.Query().Get("cursor"), query, limit)
+	if err != nil {
+		s.logger.Error("directory list failed", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "用户目录暂时不可用")
+		return
+	}
+	result := make([]directoryUserResponse, 0, len(users))
+	for _, user := range users {
+		result = append(result, directoryProjection(user))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": result, "nextCursor": next})
+}
+
+func (s *Server) directoryUser(w http.ResponseWriter, r *http.Request) {
+	if !s.directoryAuthorized(r) {
+		writeError(w, http.StatusUnauthorized, "未授权")
+		return
+	}
+	user, err := s.service.DirectoryUser(r.Context(), r.PathValue("userID"))
+	if errors.Is(err, auth.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+	if err != nil {
+		s.logger.Error("directory lookup failed", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "用户目录暂时不可用")
+		return
+	}
+	writeJSON(w, http.StatusOK, directoryProjection(user))
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {

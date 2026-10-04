@@ -31,6 +31,7 @@ type Config struct {
 	MailProvider     string
 	MailFrom         string
 	ResendAPIKey     string
+	DirectoryToken   string
 }
 
 func Load() (Config, error) {
@@ -59,6 +60,10 @@ func Load() (Config, error) {
 		MailProvider:     env("VF_MAIL_PROVIDER", defaultMailProvider),
 		MailFrom:         strings.TrimSpace(os.Getenv("VF_MAIL_FROM")),
 		ResendAPIKey:     strings.TrimSpace(os.Getenv("VF_RESEND_API_KEY")),
+		DirectoryToken:   strings.TrimSpace(os.Getenv("VF_LOGIN_DIRECTORY_TOKEN")),
+	}
+	if cfg.DirectoryToken != "" && len(cfg.DirectoryToken) < 32 {
+		return Config{}, errors.New("VF_LOGIN_DIRECTORY_TOKEN must contain at least 32 characters")
 	}
 	if cfg.MailProvider != "resend" && cfg.MailProvider != "log" {
 		return Config{}, errors.New("VF_MAIL_PROVIDER must be resend or log")
