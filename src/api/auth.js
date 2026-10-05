@@ -34,6 +34,12 @@ export const hubUrl = (returnTo) => `${hubBase}${safeReturnTo(returnTo)}`;
 const mockEmail = (email) => email.trim().toLowerCase();
 
 export const authApi = {
+  async getSession() {
+    if (!useMock) return request("/session");
+    const profile = JSON.parse(localStorage.getItem("vf_mock_profile") || "null");
+    if (!profile) throw new Error("登录会话无效或已过期");
+    return { userId: "mock-user", email: profile.email };
+  },
   async getCenterContext() {
     if (!useMock) {
       const response = await fetch("/api/control/context", { credentials: "include" });

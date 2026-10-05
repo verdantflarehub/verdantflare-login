@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { authApi, hubUrl, safeReturnTo } from "../api/auth";
 import { managementPathFor } from "../api/management";
 import AppIcon from "../components/AppIcon.vue";
@@ -12,6 +12,7 @@ const devAdminEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || "";
 const email = ref(query.get("email") || "");
 const password = ref("");
 const showPassword = ref(false);
+const checkingSession = ref(true);
 const loading = ref(false);
 const error = ref("");
 const redirectTo = ref("");
@@ -22,6 +23,16 @@ const canSubmit = computed(() =>
 );
 
 const withReturnTo = (path) => `${path}?return_to=${encodeURIComponent(returnTo)}`;
+
+onMounted(async () => {
+  try {
+    const session = await authApi.getSession();
+    if (!session?.userId) throw new Error("无法确认登录会话");
+    window.location.replace(hubUrl(returnTo));
+  } catch {
+    checkingSession.value = false;
+  }
+});
 
 const submit = async () => {
   error.value = "";
@@ -45,7 +56,11 @@ const submit = async () => {
 </script>
 
 <template>
-  <div v-if="redirectTo" class="result-state">
+  <div v-if="checkingSession" class="result-state" role="status">
+    <span class="spinner" aria-hidden="true" />
+    <p>正在确认登录状态…</p>
+  </div>
+  <div v-else-if="redirectTo" class="result-state">
     <span class="result-icon"><AppIcon name="check" :size="30" /></span>
     <h1>登录成功</h1>
     <p>安全会话已建立，可以继续进入 VerdantFlare Hub。</p>
