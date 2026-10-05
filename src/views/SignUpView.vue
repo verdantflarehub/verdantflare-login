@@ -73,7 +73,7 @@ onUnmounted(() => window.clearInterval(countdownTimer));
   <form v-else class="auth-form signup-form" novalidate @submit.prevent="submit">
     <header class="form-heading">
       <h1>创建账号</h1>
-      <p>开始使用 VerdantFlare Hub、API 与 Studio。</p>
+      <p>一个青焰账号，连接模型、应用与创作。</p>
     </header>
 
     <label class="field"><span>邮箱</span><span class="input-wrap"><AppIcon name="mail" :size="20" /><input v-model.trim="email" type="email" autocomplete="email" placeholder="name@company.com" required /></span></label>

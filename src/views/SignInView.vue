@@ -63,7 +63,7 @@ const submit = async () => {
   <div v-else-if="redirectTo" class="result-state">
     <span class="result-icon"><AppIcon name="check" :size="30" /></span>
     <h1>登录成功</h1>
-    <p>安全会话已建立，可以继续进入 VerdantFlare Hub。</p>
+    <p>你已登录青焰，继续进入 Hub 开始使用。</p>
     <div class="result-actions">
       <a class="button primary" :href="redirectTo">进入 Hub <AppIcon name="arrow" :size="18" /></a>
       <a v-if="managementTo" class="button secondary" :href="managementTo">进入管理端 <AppIcon name="arrow" :size="18" /></a>
@@ -72,8 +72,8 @@ const submit = async () => {
 
   <form v-else class="auth-form" novalidate @submit.prevent="submit">
     <header class="form-heading">
-      <h1>欢迎回来</h1>
-      <p>登录后继续使用 Hub、API 与 Studio。</p>
+      <h1>欢迎回来。</h1>
+      <p>登录青焰，继续使用你的模型与应用。</p>
     </header>
 
     <label class="field">
