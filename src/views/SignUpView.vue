@@ -5,8 +5,9 @@ import AppIcon from "../components/AppIcon.vue";
 import FormMessage from "../components/FormMessage.vue";
 import { navigate } from "../router";
 
-const returnTo = safeReturnTo(new URLSearchParams(window.location.search).get("return_to"));
-const email = ref("");
+const query = new URLSearchParams(window.location.search);
+const returnTo = safeReturnTo(query.get("return_to"));
+const email = ref(query.get("email") || "");
 const code = ref("");
 const password = ref("");
 const accepted = ref(false);
