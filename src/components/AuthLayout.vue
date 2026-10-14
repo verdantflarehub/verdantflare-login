@@ -14,9 +14,9 @@ import BrandPanel from "./BrandPanel.vue";
         <slot />
       </div>
       <footer class="legal-links">
-        <a href="https://www.verdantflarehub.com/privacy">隐私政策</a>
+        <a href="https://www.verdantflarehub.com/privacy" target="_blank" rel="noopener noreferrer">隐私政策</a>
         <span aria-hidden="true" />
-        <a href="https://www.verdantflarehub.com/terms">服务条款</a>
+        <a href="https://www.verdantflarehub.com/terms" target="_blank" rel="noopener noreferrer">服务条款</a>
       </footer>
     </section>
   </main>
