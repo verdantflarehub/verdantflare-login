@@ -42,7 +42,7 @@ Vite 会把 `/api/auth` 和 `/healthz` 同源代理至 `http://localhost:8088`�
 
 前端 Mock 只允许在 Vite 开发模式运行，生产构建始终调用真实 `/api/auth` 接口。
 
-登录成功页通过同源的 `/api/control/context` 读取当前组织角色。具备 `app_ops_admin` 或 `customer_success_admin` 的用户会看到“进入管理端”，分别进入 Hub 的应用发布或客户组织页面。该接口由 Login Web 的 Nginx 先验证 Login 会话，再把身份传给 Control Service；Hub 和 Control Service 仍会校验页面及操作权限。开发模式的 Mock 仅用 `VITE_DEV_ADMIN_EMAIL`（默认 `admin@verdantflarehub.com`）模拟运营管理员。
+登录成功页通过同源的 `/api/control/context` 读取当前组织角色。具备 `app_ops_admin` 或 `customer_success_admin` 的用户会看到“进入管理端”，分别进入 Hub 的应用发布或客户组织页面。该接口由 Login Web 的 Nginx 先验证 Login 会话，再把身份传给 Control Service；Hub 和 Control Service 仍会校验页面及操作权限。开发模式的 Mock 仅用 `VITE_DEV_ADMIN_EMAIL`（默认 `admin@verdantflare.ai`）模拟运营管理员。
 
 ## API
 

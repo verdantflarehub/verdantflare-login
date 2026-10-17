@@ -49,7 +49,7 @@ export const authApi = {
       return response.json();
     }
     const profile = JSON.parse(localStorage.getItem("vf_mock_profile") || "null");
-    const adminEmail = mockEmail(import.meta.env.VITE_DEV_ADMIN_EMAIL || "admin@verdantflarehub.com");
+    const adminEmail = mockEmail(import.meta.env.VITE_DEV_ADMIN_EMAIL || "admin@verdantflare.ai");
     return {
       activeOrganizationId: "org_verdantflare",
       organizations: [{

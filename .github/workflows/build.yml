@@ -46,7 +46,7 @@ jobs:
           VITE_USE_MOCK: "false"
           VITE_AUTH_API_BASE: /api/auth
           VITE_HUB_URL: ${{ github.ref == 'refs/heads/dev' && 'https://hub.dev.verdantflarehub.com' || 'https://hub.verdantflarehub.com' }}
-          VITE_DEV_ADMIN_EMAIL: ${{ github.ref == 'refs/heads/dev' && 'admin@verdantflarehub.com' || '' }}
+          VITE_DEV_ADMIN_EMAIL: ${{ github.ref == 'refs/heads/dev' && 'admin@verdantflare.ai' || '' }}
         run: npm run build
 
       - name: Set up Docker Buildx
