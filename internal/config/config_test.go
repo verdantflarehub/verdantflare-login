@@ -29,3 +29,26 @@ func TestProductionRequiresRealMailDelivery(t *testing.T) {
 		t.Fatal("production accepted exposed verification codes")
 	}
 }
+
+func TestAlternateRootDomainRequiresMatchingSecureConfiguration(t *testing.T) {
+	t.Setenv("VF_ENV", "development")
+	t.Setenv("VF_MAIL_PROVIDER", "log")
+	t.Setenv("VF_ALT_LOGIN_HOST", "login.verdantflare.ai")
+	if _, err := Load(); err == nil {
+		t.Fatal("accepted an incomplete alternate domain")
+	}
+	t.Setenv("VF_ALT_HUB_URL", "https://hub.verdantflare.ai")
+	t.Setenv("VF_ALT_PUBLIC_LOGIN_URL", "https://login.verdantflare.ai")
+	t.Setenv("VF_ALT_SESSION_COOKIE_DOMAIN", ".verdantflare.ai")
+	if _, err := Load(); err != nil {
+		t.Fatalf("valid alternate domain rejected: %v", err)
+	}
+	t.Setenv("VF_ALT_HUB_URL", "http://hub.verdantflare.ai")
+	if _, err := Load(); err == nil {
+		t.Fatal("accepted insecure alternate Hub URL")
+	}
+	t.Setenv("VF_ALT_HUB_URL", "https://hub.other.example")
+	if _, err := Load(); err == nil {
+		t.Fatal("accepted an alternate Hub outside the cookie root")
+	}
+}

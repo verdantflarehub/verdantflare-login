@@ -17,11 +17,16 @@ import (
 )
 
 type Config struct {
-	CookieName     string
-	CookieDomain   string
-	CookieSecure   bool
-	SessionTTL     time.Duration
-	DirectoryToken string
+	CookieName        string
+	CookieDomain      string
+	PublicLoginURL    string
+	AltLoginHost      string
+	AltHubURL         string
+	AltPublicLoginURL string
+	AltCookieDomain   string
+	CookieSecure      bool
+	SessionTTL        time.Duration
+	DirectoryToken    string
 }
 
 type Server struct {
@@ -214,8 +219,12 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 		s.writeServiceError(w, err)
 		return
 	}
+	site := s.siteForRequest(r)
+	if site.hubURL != "" {
+		result.RedirectTo = s.service.HubRedirectAt(request.ReturnTo, site.hubURL)
+	}
 	http.SetCookie(w, &http.Cookie{
-		Name: s.config.CookieName, Value: result.SessionToken, Path: "/", Domain: s.config.CookieDomain,
+		Name: s.config.CookieName, Value: result.SessionToken, Path: "/", Domain: site.cookieDomain,
 		MaxAge: int(s.config.SessionTTL.Seconds()), Expires: result.ExpiresAt,
 		Secure: s.config.CookieSecure, HttpOnly: true, SameSite: http.SameSiteLaxMode,
 	})
@@ -234,7 +243,7 @@ func (s *Server) forgotPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "请求过于频繁，请稍后重试")
 		return
 	}
-	if err := s.service.ForgotPassword(r.Context(), request.Email); err != nil {
+	if err := s.service.ForgotPasswordAt(r.Context(), request.Email, s.siteForRequest(r).publicLoginURL); err != nil {
 		s.logger.Error("forgot password failed", "error", err)
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"email": strings.TrimSpace(request.Email)})
@@ -268,7 +277,7 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := s.service.Session(r.Context(), cookie.Value)
 	if err != nil {
-		s.clearSessionCookie(w)
+		s.clearSessionCookie(w, r)
 		writeError(w, http.StatusUnauthorized, "登录会话无效或已过期")
 		return
 	}
@@ -284,7 +293,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 			s.logger.Error("logout failed", "error", err)
 		}
 	}
-	s.clearSessionCookie(w)
+	s.clearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -292,12 +301,34 @@ func (s *Server) ssoNotConfigured(w http.ResponseWriter, _ *http.Request) {
 	writeError(w, http.StatusNotImplemented, "企业 SSO 提供商尚未配置")
 }
 
-func (s *Server) clearSessionCookie(w http.ResponseWriter) {
+func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
-		Name: s.config.CookieName, Value: "", Path: "/", Domain: s.config.CookieDomain,
+		Name: s.config.CookieName, Value: "", Path: "/", Domain: s.siteForRequest(r).cookieDomain,
 		MaxAge: -1, Expires: time.Unix(1, 0), Secure: s.config.CookieSecure,
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
 	})
+}
+
+type publicSite struct {
+	hubURL         string
+	publicLoginURL string
+	cookieDomain   string
+}
+
+func (s *Server) siteForRequest(r *http.Request) publicSite {
+	defaultSite := publicSite{publicLoginURL: s.config.PublicLoginURL, cookieDomain: s.config.CookieDomain}
+	if s.config.AltLoginHost == "" {
+		return defaultSite
+	}
+	host := r.Host
+	if hostname, _, err := net.SplitHostPort(host); err == nil {
+		host = hostname
+	}
+	altRoot := strings.TrimPrefix(s.config.AltCookieDomain, ".")
+	if strings.EqualFold(host, s.config.AltLoginHost) || strings.EqualFold(host, "hub."+altRoot) || strings.EqualFold(host, "www."+altRoot) {
+		return publicSite{hubURL: s.config.AltHubURL, publicLoginURL: s.config.AltPublicLoginURL, cookieDomain: s.config.AltCookieDomain}
+	}
+	return defaultSite
 }
 
 func (s *Server) writeServiceError(w http.ResponseWriter, err error) {

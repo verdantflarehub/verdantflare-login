@@ -1,5 +1,7 @@
+import { hubBaseUrl } from "../config/site";
+
 const authBase = (import.meta.env.VITE_AUTH_API_BASE || "/api/auth").replace(/\/$/, "");
-const hubBase = (import.meta.env.VITE_HUB_URL || "https://hub.verdantflarehub.com").replace(/\/$/, "");
+const hubBase = hubBaseUrl.replace(/\/$/, "");
 const useMock = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK !== "false";
 
 const wait = (ms = 650) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -22,7 +24,7 @@ export const safeReturnTo = (value) => {
   if (!value || typeof value !== "string") return "/";
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/";
   try {
-    const url = new URL(value, "https://hub.verdantflarehub.com");
+    const url = new URL(value, hubBase);
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return "/";

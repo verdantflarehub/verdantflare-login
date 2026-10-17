@@ -70,6 +70,9 @@ func main() {
 
 	handler := httpapi.New(service, httpapi.Config{
 		CookieName: cfg.CookieName, CookieDomain: cfg.CookieDomain,
+		PublicLoginURL: cfg.PublicLoginURL,
+		AltLoginHost:   cfg.AltLoginHost, AltHubURL: cfg.AltHubURL,
+		AltPublicLoginURL: cfg.AltPublicLoginURL, AltCookieDomain: cfg.AltCookieDomain,
 		CookieSecure: cfg.CookieSecure, SessionTTL: cfg.SessionTTL,
 		DirectoryToken: cfg.DirectoryToken,
 	}, logger)

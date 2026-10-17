@@ -239,6 +239,10 @@ func (s *Service) Session(ctx context.Context, token string) (SessionResult, err
 }
 
 func (s *Service) ForgotPassword(ctx context.Context, rawEmail string) error {
+	return s.ForgotPasswordAt(ctx, rawEmail, s.config.PublicLoginURL)
+}
+
+func (s *Service) ForgotPasswordAt(ctx context.Context, rawEmail, publicLoginURL string) error {
 	email, err := normalizeEmail(rawEmail)
 	if err != nil {
 		return nil
@@ -270,7 +274,7 @@ func (s *Service) ForgotPassword(ctx context.Context, rawEmail string) error {
 	if err := s.store.SavePasswordReset(ctx, reset); err != nil {
 		return err
 	}
-	resetURL, err := url.Parse(s.config.PublicLoginURL)
+	resetURL, err := url.Parse(publicLoginURL)
 	if err != nil {
 		return err
 	}
@@ -305,9 +309,13 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 }
 
 func (s *Service) HubRedirect(returnTo string) string {
-	base, err := url.Parse(s.config.HubURL)
+	return s.HubRedirectAt(returnTo, s.config.HubURL)
+}
+
+func (s *Service) HubRedirectAt(returnTo, hubURL string) string {
+	base, err := url.Parse(hubURL)
 	if err != nil {
-		return s.config.HubURL
+		return hubURL
 	}
 	safePath := safeReturnTo(returnTo)
 	target, err := url.Parse(safePath)

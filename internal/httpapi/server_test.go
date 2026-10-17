@@ -20,6 +20,7 @@ import (
 
 type testMailer struct {
 	code            string
+	resetURL        string
 	verificationErr error
 }
 
@@ -28,8 +29,56 @@ func (m *testMailer) SendVerificationCode(_ context.Context, _ string, code stri
 	return m.verificationErr
 }
 
-func (m *testMailer) SendPasswordReset(_ context.Context, _, _ string, _ time.Duration) error {
+func (m *testMailer) SendPasswordReset(_ context.Context, _, resetURL string, _ time.Duration) error {
+	m.resetURL = resetURL
 	return nil
+}
+
+func TestParallelRootDomainsKeepRedirectsAndCookiesSeparate(t *testing.T) {
+	mailer := &testMailer{}
+	handler := newTestHandler(t, mailer)
+	verification := performJSON(t, handler, http.MethodPost, "/api/auth/verification-code", map[string]any{"email": "dual@example.com"}, nil)
+	if verification.Code != http.StatusAccepted {
+		t.Fatalf("verification: %d", verification.Code)
+	}
+	signUp := performJSON(t, handler, http.MethodPost, "/api/auth/sign-up", map[string]any{
+		"email": "dual@example.com", "code": mailer.code, "password": "Password88", "accepted": true,
+	}, nil)
+	if signUp.Code != http.StatusCreated {
+		t.Fatalf("signup: %d", signUp.Code)
+	}
+
+	for _, site := range []struct{ host, cookieDomain, hubURL string }{
+		{"login.verdantflarehub.com", "verdantflarehub.com", "https://hub.verdantflarehub.com"},
+		{"login.verdantflare.ai", "verdantflare.ai", "https://hub.verdantflare.ai"},
+		{"evil.example.com", "verdantflarehub.com", "https://hub.verdantflarehub.com"},
+	} {
+		signIn := performJSONHost(t, handler, site.host, http.MethodPost, "/api/auth/sign-in", map[string]any{
+			"email": "dual@example.com", "password": "Password88", "returnTo": "/market?entry=www",
+		}, nil)
+		if signIn.Code != http.StatusOK {
+			t.Fatalf("%s sign-in: %d", site.host, signIn.Code)
+		}
+		var body struct {
+			RedirectTo string `json:"redirectTo"`
+		}
+		decodeResponse(t, signIn, &body)
+		if body.RedirectTo != site.hubURL+"/market?entry=www" {
+			t.Fatalf("%s redirect: %s", site.host, body.RedirectTo)
+		}
+		cookie := signIn.Result().Cookies()[0]
+		if cookie.Domain != site.cookieDomain || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("%s cookie scope: %+v", site.host, cookie)
+		}
+		logout := performJSONHost(t, handler, site.host, http.MethodPost, "/api/auth/logout", map[string]any{}, cookie)
+		if logout.Code != http.StatusNoContent || logout.Result().Cookies()[0].Domain != site.cookieDomain {
+			t.Fatalf("%s logout cookie scope: %d", site.host, logout.Code)
+		}
+	}
+	forgot := performJSONHost(t, handler, "login.verdantflare.ai", http.MethodPost, "/api/auth/forgot-password", map[string]any{"email": "dual@example.com"}, nil)
+	if forgot.Code != http.StatusAccepted || !strings.HasPrefix(mailer.resetURL, "https://login.verdantflare.ai/reset-password?") {
+		t.Fatalf("new domain reset link: status=%d url=%s", forgot.Code, mailer.resetURL)
+	}
 }
 
 func TestHTTPRegistrationLoginSessionAndLogout(t *testing.T) {
@@ -126,11 +175,18 @@ func newTestHandler(t *testing.T, mailer auth.Mailer) http.Handler {
 		t.Fatalf("create service: %v", err)
 	}
 	return httpapi.New(service, httpapi.Config{
-		CookieName: "vf_session", SessionTTL: time.Hour,
+		CookieName: "vf_session", SessionTTL: time.Hour, PublicLoginURL: "https://login.verdantflarehub.com",
+		CookieDomain: ".verdantflarehub.com", AltLoginHost: "login.verdantflare.ai",
+		AltHubURL: "https://hub.verdantflare.ai", AltPublicLoginURL: "https://login.verdantflare.ai",
+		AltCookieDomain: ".verdantflare.ai",
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func performJSON(t *testing.T, handler http.Handler, method, path string, body any, cookie *http.Cookie) *httptest.ResponseRecorder {
+	return performJSONHost(t, handler, "example.com", method, path, body, cookie)
+}
+
+func performJSONHost(t *testing.T, handler http.Handler, host, method, path string, body any, cookie *http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 	var payload []byte
 	if body != nil {
@@ -141,6 +197,7 @@ func performJSON(t *testing.T, handler http.Handler, method, path string, body a
 		}
 	}
 	request := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	request.Host = host
 	request.Header.Set("Content-Type", "application/json")
 	if cookie != nil {
 		request.AddCookie(cookie)

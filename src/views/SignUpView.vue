@@ -4,6 +4,7 @@ import { authApi, safeReturnTo } from "../api/auth";
 import AppIcon from "../components/AppIcon.vue";
 import FormMessage from "../components/FormMessage.vue";
 import { navigate } from "../router";
+import { wwwBaseUrl } from "../config/site";
 
 const query = new URLSearchParams(window.location.search);
 const returnTo = safeReturnTo(query.get("return_to"));
@@ -91,7 +92,7 @@ onUnmounted(() => window.clearInterval(countdownTimer));
 
     <label class="field"><span>设置密码</span><span class="input-wrap"><AppIcon name="lock" :size="20" /><input v-model="password" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="至少 8 位，包含字母与数字" minlength="8" required /><button class="icon-button" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword"><AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="20" /></button></span></label>
 
-    <label class="check-row"><input v-model="accepted" type="checkbox" /><span>我已阅读并同意<a href="https://www.verdantflarehub.com/terms" target="_blank" rel="noopener noreferrer">《服务条款》</a>和<a href="https://www.verdantflarehub.com/privacy" target="_blank" rel="noopener noreferrer">《隐私政策》</a></span></label>
+    <label class="check-row"><input v-model="accepted" type="checkbox" /><span>我已阅读并同意<a :href="`${wwwBaseUrl}/terms`" target="_blank" rel="noopener noreferrer">《服务条款》</a>和<a :href="`${wwwBaseUrl}/privacy`" target="_blank" rel="noopener noreferrer">《隐私政策》</a></span></label>
     <FormMessage v-if="error" :text="error" />
 
     <button class="button primary" type="submit" :disabled="!canSubmit"><span v-if="loading" class="spinner" />{{ loading ? "正在创建…" : "创建账号" }}</button>

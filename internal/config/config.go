@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -13,25 +14,29 @@ import (
 )
 
 type Config struct {
-	Address          string
-	Environment      string
-	DatabaseURL      string
-	DatabaseMaxOpen  int
-	DatabaseMaxIdle  int
-	HubURL           string
-	PublicLoginURL   string
-	CookieName       string
-	CookieDomain     string
-	CookieSecure     bool
-	SessionTTL       time.Duration
-	VerificationTTL  time.Duration
-	PasswordResetTTL time.Duration
-	TokenPepper      []byte
-	ExposeDebugCodes bool
-	MailProvider     string
-	MailFrom         string
-	ResendAPIKey     string
-	DirectoryToken   string
+	Address           string
+	Environment       string
+	DatabaseURL       string
+	DatabaseMaxOpen   int
+	DatabaseMaxIdle   int
+	HubURL            string
+	PublicLoginURL    string
+	CookieName        string
+	CookieDomain      string
+	AltLoginHost      string
+	AltHubURL         string
+	AltPublicLoginURL string
+	AltCookieDomain   string
+	CookieSecure      bool
+	SessionTTL        time.Duration
+	VerificationTTL   time.Duration
+	PasswordResetTTL  time.Duration
+	TokenPepper       []byte
+	ExposeDebugCodes  bool
+	MailProvider      string
+	MailFrom          string
+	ResendAPIKey      string
+	DirectoryToken    string
 }
 
 func Load() (Config, error) {
@@ -43,24 +48,28 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Address:          env("VF_LISTEN_ADDR", ":8088"),
-		Environment:      environment,
-		DatabaseURL:      strings.TrimSpace(os.Getenv("VF_DATABASE_URL")),
-		DatabaseMaxOpen:  envInt("VF_DATABASE_MAX_OPEN", 10),
-		DatabaseMaxIdle:  envInt("VF_DATABASE_MAX_IDLE", 5),
-		HubURL:           env("VF_HUB_URL", "https://hub.verdantflarehub.com"),
-		PublicLoginURL:   env("VF_PUBLIC_LOGIN_URL", "http://localhost:4174"),
-		CookieName:       env("VF_SESSION_COOKIE_NAME", "vf_session"),
-		CookieDomain:     strings.TrimSpace(os.Getenv("VF_SESSION_COOKIE_DOMAIN")),
-		CookieSecure:     envBool("VF_SESSION_COOKIE_SECURE", production),
-		SessionTTL:       envDuration("VF_SESSION_TTL", 12*time.Hour),
-		VerificationTTL:  envDuration("VF_VERIFICATION_TTL", 10*time.Minute),
-		PasswordResetTTL: envDuration("VF_PASSWORD_RESET_TTL", 30*time.Minute),
-		ExposeDebugCodes: envBool("VF_EXPOSE_DEBUG_CODES", false),
-		MailProvider:     env("VF_MAIL_PROVIDER", defaultMailProvider),
-		MailFrom:         strings.TrimSpace(os.Getenv("VF_MAIL_FROM")),
-		ResendAPIKey:     strings.TrimSpace(os.Getenv("VF_RESEND_API_KEY")),
-		DirectoryToken:   strings.TrimSpace(os.Getenv("VF_LOGIN_DIRECTORY_TOKEN")),
+		Address:           env("VF_LISTEN_ADDR", ":8088"),
+		Environment:       environment,
+		DatabaseURL:       strings.TrimSpace(os.Getenv("VF_DATABASE_URL")),
+		DatabaseMaxOpen:   envInt("VF_DATABASE_MAX_OPEN", 10),
+		DatabaseMaxIdle:   envInt("VF_DATABASE_MAX_IDLE", 5),
+		HubURL:            env("VF_HUB_URL", "https://hub.verdantflarehub.com"),
+		PublicLoginURL:    env("VF_PUBLIC_LOGIN_URL", "http://localhost:4174"),
+		CookieName:        env("VF_SESSION_COOKIE_NAME", "vf_session"),
+		CookieDomain:      strings.TrimSpace(os.Getenv("VF_SESSION_COOKIE_DOMAIN")),
+		AltLoginHost:      strings.TrimSpace(os.Getenv("VF_ALT_LOGIN_HOST")),
+		AltHubURL:         strings.TrimSpace(os.Getenv("VF_ALT_HUB_URL")),
+		AltPublicLoginURL: strings.TrimSpace(os.Getenv("VF_ALT_PUBLIC_LOGIN_URL")),
+		AltCookieDomain:   strings.TrimSpace(os.Getenv("VF_ALT_SESSION_COOKIE_DOMAIN")),
+		CookieSecure:      envBool("VF_SESSION_COOKIE_SECURE", production),
+		SessionTTL:        envDuration("VF_SESSION_TTL", 12*time.Hour),
+		VerificationTTL:   envDuration("VF_VERIFICATION_TTL", 10*time.Minute),
+		PasswordResetTTL:  envDuration("VF_PASSWORD_RESET_TTL", 30*time.Minute),
+		ExposeDebugCodes:  envBool("VF_EXPOSE_DEBUG_CODES", false),
+		MailProvider:      env("VF_MAIL_PROVIDER", defaultMailProvider),
+		MailFrom:          strings.TrimSpace(os.Getenv("VF_MAIL_FROM")),
+		ResendAPIKey:      strings.TrimSpace(os.Getenv("VF_RESEND_API_KEY")),
+		DirectoryToken:    strings.TrimSpace(os.Getenv("VF_LOGIN_DIRECTORY_TOKEN")),
 	}
 	if cfg.DirectoryToken != "" && len(cfg.DirectoryToken) < 32 {
 		return Config{}, errors.New("VF_LOGIN_DIRECTORY_TOKEN must contain at least 32 characters")
@@ -105,6 +114,16 @@ func Load() (Config, error) {
 	}
 	if production && !cfg.CookieSecure {
 		return Config{}, errors.New("VF_SESSION_COOKIE_SECURE cannot be disabled in production")
+	}
+	if cfg.AltLoginHost != "" || cfg.AltHubURL != "" || cfg.AltPublicLoginURL != "" || cfg.AltCookieDomain != "" {
+		if cfg.AltLoginHost == "" || cfg.AltHubURL == "" || cfg.AltPublicLoginURL == "" || cfg.AltCookieDomain == "" {
+			return Config{}, errors.New("alternate site configuration must be complete")
+		}
+		root := strings.TrimPrefix(cfg.AltCookieDomain, ".")
+		altHub, err := url.Parse(cfg.AltHubURL)
+		if err != nil || !strings.HasPrefix(cfg.AltCookieDomain, ".") || cfg.AltLoginHost != "login."+root || cfg.AltPublicLoginURL != "https://"+cfg.AltLoginHost || altHub.Scheme != "https" || altHub.Host != "hub."+root || altHub.Path != "" || altHub.RawQuery != "" || altHub.Fragment != "" {
+			return Config{}, errors.New("alternate site URLs and cookie domain must match")
+		}
 	}
 	if production && cfg.DatabaseURL == "" {
 		return Config{}, errors.New("VF_DATABASE_URL is required in production")

@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.1.8-dev.1' || 'login-web-v1.1.8' }}
-  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.1.8-dev.1' || 'login-api-v1.1.8' }}
+  LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.1.9-dev.1' || 'login-web-v1.1.9' }}
+  LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.1.9-dev.1' || 'login-api-v1.1.9' }}
 
 concurrency:
   group: verdantflare-login-release
