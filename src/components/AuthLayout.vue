@@ -8,7 +8,7 @@ import { wwwBaseUrl } from "../config/site";
     <BrandPanel />
     <section class="auth-stage">
       <div class="mobile-brand">
-        <img src="/brand/verdantflare-logo.svg" alt="" />
+        <img src="/brand/verdantflare-logo.png" alt="" />
         <span>Verdant<span>Flare</span></span>
       </div>
       <div class="auth-content">

@@ -5,7 +5,7 @@ import { wwwBaseUrl } from "../config/site";
 <template>
   <aside class="brand-panel" aria-label="VerdantFlare 品牌介绍">
     <a class="brand-lockup" :href="wwwBaseUrl" aria-label="VerdantFlare 首页">
-      <img src="/brand/verdantflare-logo.svg" alt="" />
+      <img src="/brand/verdantflare-logo.png" alt="" />
       <span>Verdant<span>Flare</span></span>
     </a>
 
