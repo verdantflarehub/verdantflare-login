@@ -101,10 +101,6 @@ const submit = async () => {
       {{ loading ? "正在登录…" : "登录" }}
     </button>
 
-    <button class="button secondary" type="button" disabled>
-      <AppIcon name="building" :size="21" />企业 SSO 暂未开放
-    </button>
-
     <p class="form-switch">还没有账号？ <a :href="withReturnTo('/sign-up')" @click.prevent="navigate(withReturnTo('/sign-up'))">创建账号</a></p>
     <p class="security-note"><AppIcon name="shield" :size="17" />受安全连接保护</p>
   </form>
