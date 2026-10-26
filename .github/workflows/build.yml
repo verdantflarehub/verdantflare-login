@@ -1,6 +1,6 @@
 # ADMIN CONFIG REQUIRED:
-# Configure REGISTRY_* and KUBERNETES_* repository secrets. Before the first
-# release, create verdantflare-login-web and verdantflare-login-api Deployments
+# Configure KUBERNETES_* repository secrets. Before the first release,
+# create verdantflare-login-web and verdantflare-login-api Deployments
 # plus the required Login and database Secrets in the verdantflare namespace.
 name: build
 
@@ -12,8 +12,10 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 env:
+  IMAGE_NAME: ghcr.io/verdantflarehub/verdantflare-login
   LOGIN_WEB_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-web-v1.1.10-dev.1' || 'login-web-v1.1.10' }}
   LOGIN_API_VERSION: ${{ github.ref == 'refs/heads/dev' && 'login-api-v1.1.10-dev.1' || 'login-api-v1.1.10' }}
 
@@ -25,8 +27,6 @@ jobs:
   build-and-push:
     name: Test and push Login images
     runs-on: ubuntu-latest
-    outputs:
-      image_name: ${{ steps.image.outputs.image_name }}
 
     steps:
       - name: Checkout code
@@ -45,36 +45,24 @@ jobs:
         env:
           VITE_USE_MOCK: "false"
           VITE_AUTH_API_BASE: /api/auth
-          VITE_HUB_URL: ${{ github.ref == 'refs/heads/dev' && 'https://hub.dev.verdantflarehub.com' || 'https://hub.verdantflarehub.com' }}
+          VITE_HUB_URL: ${{ github.ref == 'refs/heads/dev' && 'https://hub.dev.verdantflarehub.com' || 'https://hub.verdantflare.ai' }}
           VITE_DEV_ADMIN_EMAIL: ${{ github.ref == 'refs/heads/dev' && 'admin@verdantflare.ai' || '' }}
         run: npm run build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set image metadata
-        id: image
-        env:
-          REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
-        run: |
-          set -eu
-          registry_endpoint="${REGISTRY_ENDPOINT%/}"
-          test -n "$registry_endpoint"
-          echo "registry_endpoint=$registry_endpoint" >> "$GITHUB_OUTPUT"
-          echo "image_namespace=$registry_endpoint/wod" >> "$GITHUB_OUTPUT"
-          echo "image_name=$registry_endpoint/wod/verdantflare" >> "$GITHUB_OUTPUT"
-
-      - name: Login to Aliyun Container Registry
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ steps.image.outputs.registry_endpoint }}
-          username: ${{ secrets.REGISTRY_USER_ALIYUN }}
-          password: ${{ secrets.REGISTRY_PASSWORD_ALIYUN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Refuse existing image tags
         run: |
-          ! docker buildx imagetools inspect "${{ steps.image.outputs.image_name }}:${{ env.LOGIN_WEB_VERSION }}" >/dev/null 2>&1
-          ! docker buildx imagetools inspect "${{ steps.image.outputs.image_name }}:${{ env.LOGIN_API_VERSION }}" >/dev/null 2>&1
+          ! docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ env.LOGIN_WEB_VERSION }}" >/dev/null 2>&1
+          ! docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ env.LOGIN_API_VERSION }}" >/dev/null 2>&1
 
       - name: Build and push Login web image
         uses: docker/build-push-action@v6
@@ -85,11 +73,10 @@ jobs:
           push: true
           provenance: false
           sbom: false
-          tags: ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_WEB_VERSION }}
+          tags: ${{ env.IMAGE_NAME }}:${{ env.LOGIN_WEB_VERSION }}
           build-args: |
             AUTHOR=${{ github.repository_owner }}
             VERSION=${{ env.LOGIN_WEB_VERSION }}
-            NGINX_BASE=${{ steps.image.outputs.image_namespace }}/nginx:1.27
           cache-from: type=gha,scope=login-web
           cache-to: type=gha,mode=max,scope=login-web
 
@@ -102,7 +89,7 @@ jobs:
           push: true
           provenance: false
           sbom: false
-          tags: ${{ steps.image.outputs.image_name }}:${{ env.LOGIN_API_VERSION }}
+          tags: ${{ env.IMAGE_NAME }}:${{ env.LOGIN_API_VERSION }}
           build-args: |
             AUTHOR=${{ github.repository_owner }}
             VERSION=${{ env.LOGIN_API_VERSION }}
@@ -111,8 +98,8 @@ jobs:
 
       - name: Image build success
         run: |
-          echo "${{ steps.image.outputs.image_name }}:${LOGIN_WEB_VERSION} built and pushed."
-          echo "${{ steps.image.outputs.image_name }}:${LOGIN_API_VERSION} built and pushed."
+          echo "${{ env.IMAGE_NAME }}:${LOGIN_WEB_VERSION} built and pushed."
+          echo "${{ env.IMAGE_NAME }}:${LOGIN_API_VERSION} built and pushed."
 
   deploy:
     name: Deploy Login to Kubernetes
@@ -143,8 +130,7 @@ jobs:
               --embed-certs=true
           else
             kubectl config set-cluster verdantflare \
-              --server="$KUBERNETES_SERVER" \
-              --insecure-skip-tls-verify=true
+              --server="$KUBERNETES_SERVER"
           fi
 
           kubectl config set-credentials github-actions --token="$KUBERNETES_TOKEN"
@@ -153,11 +139,22 @@ jobs:
             --user=github-actions \
             --namespace=verdantflare
 
-      - name: Update Login deployments
+      - name: Configure GHCR pull secret and update Login deployments
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          web_image="registry.cn-qingdao.aliyuncs.com/wod/verdantflare:${LOGIN_WEB_VERSION}"
-          api_image="registry.cn-qingdao.aliyuncs.com/wod/verdantflare:${LOGIN_API_VERSION}"
+          kubectl --context verdantflare -n verdantflare create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username="$GHCR_USER" \
+            --docker-password="$GHCR_TOKEN" \
+            --dry-run=client -o yaml | kubectl --context verdantflare -n verdantflare apply -f -
+          kubectl --context verdantflare -n verdantflare patch serviceaccount default \
+            -p '{"imagePullSecrets":[{"name":"ghcr-pull"}]}'
+
+          web_image="${IMAGE_NAME}:${LOGIN_WEB_VERSION}"
+          api_image="${IMAGE_NAME}:${LOGIN_API_VERSION}"
 
           # Fail before changing either image if the production mail Secret is
           # absent or either required value is empty. Never print Secret data.
@@ -166,8 +163,6 @@ jobs:
           kubectl --context verdantflare -n verdantflare get secret login-directory-bridge -o json \
             | jq -e '(.data.TOKEN // "") != ""' >/dev/null
 
-          # The old API ignores these variables. Add references without exposing
-          # values, wait for that safe rollout, then switch to the new images.
           kubectl --context verdantflare -n verdantflare patch deployment verdantflare-login-api --type strategic \
             -p '{"spec":{"template":{"spec":{"containers":[{"name":"verdantflare-login-api","env":[{"name":"VF_MAIL_PROVIDER","value":"resend"},{"name":"VF_MAIL_FROM","valueFrom":{"secretKeyRef":{"name":"login-mail","key":"VF_MAIL_FROM"}}},{"name":"VF_RESEND_API_KEY","valueFrom":{"secretKeyRef":{"name":"login-mail","key":"VF_RESEND_API_KEY"}}},{"name":"VF_LOGIN_DIRECTORY_TOKEN","valueFrom":{"secretKeyRef":{"name":"login-directory-bridge","key":"TOKEN"}}}]}]}}}}'
           kubectl --context verdantflare -n verdantflare rollout status deployment/verdantflare-login-api --timeout=5m
