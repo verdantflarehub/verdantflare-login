@@ -17,13 +17,14 @@ import (
 )
 
 type ServiceConfig struct {
-	HubURL           string
-	PublicLoginURL   string
-	SessionTTL       time.Duration
-	VerificationTTL  time.Duration
-	PasswordResetTTL time.Duration
-	TokenPepper      []byte
-	ExposeDebugCodes bool
+	HubURL             string
+	AssistantReturnURL string
+	PublicLoginURL     string
+	SessionTTL         time.Duration
+	VerificationTTL    time.Duration
+	PasswordResetTTL   time.Duration
+	TokenPepper        []byte
+	ExposeDebugCodes   bool
 }
 
 type Service struct {
@@ -76,6 +77,9 @@ type SessionResult struct {
 }
 
 func NewService(store Store, mailer Mailer, config ServiceConfig) (*Service, error) {
+	if err := validateAssistantReturnURL(config.AssistantReturnURL); err != nil {
+		return nil, err
+	}
 	hasher := DefaultPasswordHasher()
 	dummyHash, err := hasher.Hash("VerdantFlare timing equalization password 4E2A9F")
 	if err != nil {
@@ -219,7 +223,7 @@ func (s *Service) SignIn(ctx context.Context, input SignInInput) (SignInResult, 
 	}
 	return SignInResult{
 		SessionToken: token,
-		RedirectTo:   s.HubRedirect(input.ReturnTo),
+		RedirectTo:   s.LoginRedirectAt(input.ReturnTo, s.config.HubURL),
 		ExpiresAt:    session.ExpiresAt,
 	}, nil
 }

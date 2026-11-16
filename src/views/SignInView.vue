@@ -25,10 +25,15 @@ const canSubmit = computed(() =>
 const withReturnTo = (path) => `${path}?return_to=${encodeURIComponent(returnTo)}`;
 
 onMounted(async () => {
+  // An explicit account switch shows the existing form without logging out via GET.
+  if (returnTo === "/__assistant_connect" && query.get("prompt") === "login") {
+    checkingSession.value = false;
+    return;
+  }
   try {
-    const session = await authApi.getSession();
+    const session = await authApi.getSession(returnTo);
     if (!session?.userId) throw new Error("无法确认登录会话");
-    window.location.replace(hubUrl(returnTo));
+    window.location.replace(session.redirectTo || hubUrl(returnTo));
   } catch {
     checkingSession.value = false;
   }
@@ -40,6 +45,10 @@ const submit = async () => {
   try {
     const loginEmail = devAdminEmail && email.value.toLowerCase() === "admin" ? devAdminEmail : email.value;
     const result = await authApi.signIn({ email: loginEmail, password: password.value, returnTo });
+    if (returnTo === "/__assistant_connect") {
+      window.location.replace(result.redirectTo);
+      return;
+    }
     redirectTo.value = result.redirectTo;
     try {
       const managementPath = managementPathFor(await authApi.getCenterContext());

@@ -59,7 +59,8 @@ func main() {
 	}
 	service, err := auth.NewService(store, delivery, auth.ServiceConfig{
 		HubURL: cfg.HubURL, PublicLoginURL: cfg.PublicLoginURL,
-		SessionTTL: cfg.SessionTTL, VerificationTTL: cfg.VerificationTTL,
+		AssistantReturnURL: cfg.AssistantReturnURL,
+		SessionTTL:         cfg.SessionTTL, VerificationTTL: cfg.VerificationTTL,
 		PasswordResetTTL: cfg.PasswordResetTTL, TokenPepper: cfg.TokenPepper,
 		ExposeDebugCodes: cfg.ExposeDebugCodes,
 	})

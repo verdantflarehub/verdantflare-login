@@ -221,7 +221,7 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 	site := s.siteForRequest(r)
 	if site.hubURL != "" {
-		result.RedirectTo = s.service.HubRedirectAt(request.ReturnTo, site.hubURL)
+		result.RedirectTo = s.service.LoginRedirectAt(request.ReturnTo, site.hubURL)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: s.config.CookieName, Value: result.SessionToken, Path: "/", Domain: site.cookieDomain,
@@ -284,6 +284,7 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-VF-Login-Subject", result.UserID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"userId": result.UserID, "email": result.Email, "expiresAt": result.ExpiresAt,
+		"redirectTo": s.service.LoginRedirectAt(r.URL.Query().Get("return_to"), s.siteForRequest(r).hubURL),
 	})
 }
 
