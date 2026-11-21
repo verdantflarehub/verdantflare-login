@@ -45,7 +45,7 @@ const submit = async () => {
   try {
     const loginEmail = devAdminEmail && email.value.toLowerCase() === "admin" ? devAdminEmail : email.value;
     const result = await authApi.signIn({ email: loginEmail, password: password.value, returnTo });
-    if (returnTo === "/__assistant_connect") {
+    if (returnTo && returnTo !== "/") {
       window.location.replace(result.redirectTo);
       return;
     }
