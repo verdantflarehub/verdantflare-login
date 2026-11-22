@@ -71,9 +71,10 @@ type SignInResult struct {
 }
 
 type SessionResult struct {
-	UserID    string
-	Email     string
-	ExpiresAt time.Time
+	AuthenticationRef string
+	UserID            string
+	Email             string
+	ExpiresAt         time.Time
 }
 
 func NewService(store Store, mailer Mailer, config ServiceConfig) (*Service, error) {
@@ -239,7 +240,23 @@ func (s *Service) Session(ctx context.Context, token string) (SessionResult, err
 	if user.Status != UserStatusActive {
 		return SessionResult{}, ErrAccountDisabled
 	}
-	return SessionResult{UserID: user.ID, Email: user.Email, ExpiresAt: session.ExpiresAt}, nil
+	return SessionResult{AuthenticationRef: session.ID, UserID: user.ID, Email: user.Email, ExpiresAt: session.ExpiresAt}, nil
+}
+
+// SessionByAuthenticationRef returns the current Login fact for an internal
+// non-credential reference. It never accepts an email or a caller-provided user.
+func (s *Service) SessionByAuthenticationRef(ctx context.Context, ref, subject string) (SessionResult, error) {
+	if ref == "" || subject == "" {
+		return SessionResult{}, ErrNotFound
+	}
+	session, user, err := s.store.SessionByID(ctx, ref, time.Now().UTC())
+	if err != nil {
+		return SessionResult{}, err
+	}
+	if user.ID != subject || user.Status != UserStatusActive {
+		return SessionResult{}, ErrAccountDisabled
+	}
+	return SessionResult{AuthenticationRef: session.ID, UserID: user.ID, Email: user.Email, ExpiresAt: session.ExpiresAt}, nil
 }
 
 func (s *Service) ForgotPassword(ctx context.Context, rawEmail string) error {

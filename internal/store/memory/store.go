@@ -231,6 +231,25 @@ func (s *Store) SessionByTokenHash(_ context.Context, tokenHash string, now time
 	return session, user, nil
 }
 
+func (s *Store) SessionByID(_ context.Context, id string, now time.Time) (auth.Session, auth.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, session := range s.sessions {
+		if session.ID != id {
+			continue
+		}
+		if !now.Before(session.ExpiresAt) {
+			return auth.Session{}, auth.User{}, auth.ErrExpired
+		}
+		user, ok := s.users[session.UserID]
+		if !ok {
+			return auth.Session{}, auth.User{}, auth.ErrNotFound
+		}
+		return session, user, nil
+	}
+	return auth.Session{}, auth.User{}, auth.ErrNotFound
+}
+
 func (s *Store) DeleteSessionByTokenHash(_ context.Context, tokenHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

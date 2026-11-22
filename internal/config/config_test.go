@@ -1,6 +1,31 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestHandoffServiceCredentialIsDistinctAndOptional(t *testing.T) {
+	t.Setenv("VF_ENV", "development")
+	t.Setenv("VF_MAIL_PROVIDER", "log")
+	t.Setenv("VF_LOGIN_DIRECTORY_TOKEN", strings.Repeat("d", 32))
+	t.Setenv("VF_LOGIN_HANDOFF_TOKEN", "")
+	if _, err := Load(); err != nil {
+		t.Fatalf("disabled handoff rejected: %v", err)
+	}
+	t.Setenv("VF_LOGIN_HANDOFF_TOKEN", strings.Repeat("h", 31))
+	if _, err := Load(); err == nil {
+		t.Fatal("short handoff credential accepted")
+	}
+	t.Setenv("VF_LOGIN_HANDOFF_TOKEN", strings.Repeat("d", 32))
+	if _, err := Load(); err == nil {
+		t.Fatal("directory credential reused for handoff")
+	}
+	t.Setenv("VF_LOGIN_HANDOFF_TOKEN", strings.Repeat("h", 32))
+	if cfg, err := Load(); err != nil || cfg.HandoffToken != strings.Repeat("h", 32) {
+		t.Fatalf("separate handoff credential rejected: %v", err)
+	}
+}
 
 func TestProductionRequiresRealMailDelivery(t *testing.T) {
 	t.Setenv("VF_ENV", "production")

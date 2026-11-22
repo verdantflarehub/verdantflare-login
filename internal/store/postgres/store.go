@@ -342,6 +342,25 @@ func (s *Store) SessionByTokenHash(ctx context.Context, tokenHash string, now ti
 	return session, user, wrap(err)
 }
 
+func (s *Store) SessionByID(ctx context.Context, id string, now time.Time) (auth.Session, auth.User, error) {
+	var session auth.Session
+	var user auth.User
+	var ipAddress sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+		SELECT s.id,s.user_id,s.token_hash,s.ip_address::text,s.user_agent,s.created_at,s.last_seen_at,s.expires_at,
+		       u.id,u.email,u.normalized_email,u.status,u.email_verified_at,u.created_at,u.updated_at
+		FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
+		WHERE s.id=$1 AND s.revoked_at IS NULL AND s.expires_at>$2 AND u.deleted_at IS NULL`, id, now).Scan(
+		&session.ID, &session.UserID, &session.TokenHash, &ipAddress, &session.UserAgent,
+		&session.CreatedAt, &session.LastSeenAt, &session.ExpiresAt,
+		&user.ID, &user.Email, &user.NormalizedEmail, &user.Status, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return auth.Session{}, auth.User{}, auth.ErrNotFound
+	}
+	session.IPAddress = ipAddress.String
+	return session, user, wrap(err)
+}
+
 func (s *Store) DeleteSessionByTokenHash(ctx context.Context, tokenHash string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE auth_sessions SET revoked_at=NOW() WHERE token_hash=$1 AND revoked_at IS NULL`, tokenHash)
 	return wrap(err)

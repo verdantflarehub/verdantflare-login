@@ -85,6 +85,7 @@ type Store interface {
 	ResetPassword(context.Context, string, PasswordCredential, time.Time) error
 	SaveSession(context.Context, Session) error
 	SessionByTokenHash(context.Context, string, time.Time) (Session, User, error)
+	SessionByID(context.Context, string, time.Time) (Session, User, error)
 	DeleteSessionByTokenHash(context.Context, string) error
 	DeleteSessionsByUserID(context.Context, string) error
 }

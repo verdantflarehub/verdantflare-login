@@ -27,6 +27,7 @@ type Config struct {
 	CookieSecure      bool
 	SessionTTL        time.Duration
 	DirectoryToken    string
+	HandoffToken      string
 }
 
 type Server struct {
@@ -48,6 +49,8 @@ func New(service *auth.Service, config Config, logger *slog.Logger) http.Handler
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /api/internal/users", server.directoryUsers)
 	mux.HandleFunc("GET /api/internal/users/{userID}", server.directoryUser)
+	mux.HandleFunc("POST /api/internal/agent-handoff/v1/session/resolve", server.resolveHandoffSession)
+	mux.HandleFunc("POST /api/internal/agent-handoff/v1/session/check", server.checkHandoffSession)
 	mux.HandleFunc("POST /api/auth/verification-code", server.sendVerificationCode)
 	mux.HandleFunc("POST /api/auth/verify-email/resend", server.sendVerificationCode)
 	mux.HandleFunc("POST /api/auth/sign-up", server.signUp)

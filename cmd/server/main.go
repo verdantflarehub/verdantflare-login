@@ -76,6 +76,7 @@ func main() {
 		AltPublicLoginURL: cfg.AltPublicLoginURL, AltCookieDomain: cfg.AltCookieDomain,
 		CookieSecure: cfg.CookieSecure, SessionTTL: cfg.SessionTTL,
 		DirectoryToken: cfg.DirectoryToken,
+		HandoffToken:   cfg.HandoffToken,
 	}, logger)
 	server := &http.Server{
 		Addr: cfg.Address, Handler: handler,
