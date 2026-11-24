@@ -106,6 +106,56 @@ func (s *Server) checkHandoffSession(w http.ResponseWriter, r *http.Request) {
 	writeHandoffFact(w, result)
 }
 
+// checkHandoffSubject verifies only the current account fact. It deliberately
+// requires no browser or business session and never returns account profile data.
+func (s *Server) checkHandoffSubject(w http.ResponseWriter, r *http.Request) {
+	if !s.handoffAuthorized(r) {
+		writeHandoffError(w, http.StatusUnauthorized, "HANDOFF_UNAUTHENTICATED")
+		return
+	}
+	subject, err := decodeHandoffSubject(w, r)
+	if err != nil {
+		writeHandoffError(w, http.StatusBadRequest, "HANDOFF_INVALID_REQUEST")
+		return
+	}
+	user, err := s.service.DirectoryUser(r.Context(), subject)
+	if errors.Is(err, auth.ErrNotFound) || (err == nil && (user.ID != subject || user.Status != auth.UserStatusActive)) {
+		writeHandoffError(w, http.StatusForbidden, "HANDOFF_FORBIDDEN")
+		return
+	}
+	if err != nil {
+		writeHandoffError(w, http.StatusServiceUnavailable, "HANDOFF_UNAVAILABLE")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"subject_ref": subject, "active": true, "checked_at": time.Now().UTC()})
+}
+
+func decodeHandoffSubject(w http.ResponseWriter, r *http.Request) (string, error) {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, handoffBodyLimit))
+	first, err := decoder.Token()
+	if err != nil || first != json.Delim('{') {
+		return "", errors.New("object required")
+	}
+	keyToken, err := decoder.Token()
+	if err != nil || keyToken != "subject_ref" {
+		return "", errors.New("subject_ref required")
+	}
+	var subject string
+	if err := decoder.Decode(&subject); err != nil || !handoffUUIDPattern.MatchString(subject) || decoder.More() {
+		return "", errors.New("invalid subject_ref")
+	}
+	last, err := decoder.Token()
+	if err != nil || last != json.Delim('}') {
+		return "", errors.New("incomplete object")
+	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		return "", errors.New("trailing content")
+	}
+	return subject, nil
+}
+
 type handoffCheckInput struct {
 	AuthenticationRef string
 	SubjectRef        string

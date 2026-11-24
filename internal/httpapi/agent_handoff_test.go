@@ -96,3 +96,50 @@ func TestAgentHandoffLoginFactsAreCurrentAndInternal(t *testing.T) {
 		t.Fatalf("logout status: %d %s", got.Code, got.Body.String())
 	}
 }
+
+func TestAgentHandoffSubjectCheckDoesNotRequireSessionOrRevealProfile(t *testing.T) {
+	store := memory.New()
+	now := time.Now().UTC()
+	const active = "00000000-0000-4000-8000-000000000099"
+	const disabled = "00000000-0000-4000-8000-000000000088"
+	const bearer = "test-only-handoff-token-with-32-characters"
+	for _, user := range []auth.User{
+		{ID: active, Email: "active@example.test", NormalizedEmail: "active@example.test", Status: auth.UserStatusActive, EmailVerifiedAt: &now},
+		{ID: disabled, Email: "disabled@example.test", NormalizedEmail: "disabled@example.test", Status: auth.UserStatusDisabled, EmailVerifiedAt: &now},
+	} {
+		if err := store.CreateUser(context.Background(), user, auth.PasswordCredential{UserID: user.ID, PasswordHash: "not-used"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service, err := auth.NewService(store, &testMailer{}, auth.ServiceConfig{TokenPepper: []byte(strings.Repeat("p", 32))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := httpapi.New(service, httpapi.Config{HandoffToken: bearer}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	request := func(body, token string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/api/internal/agent-handoff/v1/subjects/check", strings.NewReader(body))
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	valid := `{"subject_ref":"` + active + `"}`
+	if got := request(valid, ""); got.Code != 401 {
+		t.Fatalf("missing service token: %d", got.Code)
+	}
+	if got := request(valid, bearer); got.Code != 200 || got.Header().Get("Cache-Control") != "no-store" || strings.Contains(got.Body.String(), "@example.test") || strings.Contains(got.Body.String(), "authentication_ref") {
+		t.Fatalf("active subject fact: %d %s", got.Code, got.Body.String())
+	}
+	for _, subject := range []string{disabled, "00000000-0000-4000-8000-000000000077"} {
+		if got := request(`{"subject_ref":"`+subject+`"}`, bearer); got.Code != 403 || strings.Contains(got.Body.String(), subject) {
+			t.Fatalf("inactive subject disclosure: %d %s", got.Code, got.Body.String())
+		}
+	}
+	for _, malformed := range []string{`{}`, valid + `{}`, `{"subject_ref":"` + active + `","subject_ref":"` + active + `"}`, `{"subject_ref":"` + active + `","email":"active@example.test"}`, `{"subject_ref":1}`, strings.Repeat("x", 16<<10)} {
+		if got := request(malformed, bearer); got.Code != 400 {
+			t.Fatalf("malformed subject accepted: %d", got.Code)
+		}
+	}
+}
